@@ -253,6 +253,11 @@ class PGConnection
             stream.write(cast(int)4);
         }
 
+        void flush_stream()
+        {
+            stream.flush();
+        }
+
         package(ddb.pg) void sendQueryMessage(string query)
         {
             stream.write(PGRequestMessageTypes.Query);
@@ -288,6 +293,7 @@ class PGConnection
             sendParseMessage(statementName, query, params.getOids());
 
             sendFlushMessage();
+            flush_stream();
 
         receive:
 
@@ -314,6 +320,7 @@ class PGConnection
             checkActiveResultSet();
             sendCloseMessage(DescribeType.Statement, statementName);
             sendFlushMessage();
+            flush_stream();
 
         receive:
 
@@ -341,6 +348,7 @@ class PGConnection
             sendBindMessage(portalName, statementName, params);
             sendDescribeMessage(DescribeType.Portal, portalName);
             sendFlushMessage();
+            flush_stream();
 
         receive:
 
@@ -374,6 +382,7 @@ class PGConnection
             sendExecuteMessage(portalName, 0);
             sendSyncMessage();
             sendFlushMessage();
+            flush_stream();
 
         receive:
 
@@ -485,6 +494,7 @@ class PGConnection
             sendExecuteMessage(portalName, 0);
             sendSyncMessage();
             sendFlushMessage();
+            flush_stream();
 
             ulong rowsAffected = 0;
 
@@ -607,6 +617,7 @@ class PGConnection
                 stream.socket.connect(new InternetAddress(params["host"], port));
             }
             sendStartupMessage(params);
+            flush_stream();
 
         receive:
 
@@ -702,6 +713,7 @@ class PGConnection
             if (stream.isAlive)
             {
                 sendTerminateMessage();
+                flush_stream();
                 stream.socket.close();
             }
         }
@@ -724,6 +736,7 @@ class PGConnection
             logDebug("Execute: %s", query);
             checkActiveResultSet();
             sendQueryMessage(query);
+            flush_stream();
             ulong rowsAffected = 0;
 
         receive:
@@ -775,6 +788,7 @@ class PGConnection
             PGFields fields;
 
             sendQueryMessage(query);
+            flush_stream();
 
             ulong rowsAffected = 0;
 
@@ -893,6 +907,7 @@ class PGConnection
             // TODO: add quote escaping
             // we can't use the `execute` interface here as it tries to read the response
             sendQueryMessage(`NOTIFY"` ~ channel ~ `", '` ~ payload ~ `'`);
+            flush_stream();
         }
 
         alias publish = notify;
@@ -1121,7 +1136,7 @@ class PGConnection
         */
         PGCommand command(string query = "")
         {
-                return new PGCommand(this, query);
+            return new PGCommand(this, query);
         }
 
 

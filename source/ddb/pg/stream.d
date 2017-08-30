@@ -13,8 +13,10 @@ class PGStream
     version (Have_vibe_core)
     {
         import vibe.core.net : TCPConnection;
+        import vibe.internal.array : BatchBuffer;
 
         private TCPConnection m_socket;
+        private ubyte[] m_write_buf;    // buffer for batched writes
 
         @property TCPConnection socket()
         {
@@ -24,6 +26,7 @@ class PGStream
         this(TCPConnection socket)
         {
             m_socket = socket;
+            m_write_buf.reserve(4096);
         }
 
         @property TCPConnection conn() { return m_socket; }
@@ -71,11 +74,22 @@ class PGStream
         }
     }
 
-    void write(ubyte[] x)
+    void flush()
     {
         version(Have_vibe_core)
         {
-            m_socket.write(x);
+            m_socket.write(m_write_buf);
+            m_write_buf.length = 0;
+        }
+        // under OS sockets we have already written our buffer
+    }
+
+    void write(scope ubyte[] x)
+    {
+        version(Have_vibe_core)
+        {
+            m_write_buf ~= x;
+            //m_socket.write(x);
         }
         else
         {
