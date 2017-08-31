@@ -34,6 +34,14 @@ class PGServerErrorException: Exception
     }
 }
 
+class PGTcpErrorException: Exception
+{
+    this(string msg, string fn = __FILE__, size_t ln = __LINE__)  pure nothrow
+    {
+        super(msg, fn, ln);
+    }
+}
+
 ///
 class TransactionException : Exception
 {

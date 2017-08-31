@@ -5,6 +5,7 @@ import std.bitmanip : nativeToBigEndian;
 import std.datetime;
 
 import ddb.pg.types;
+import ddb.pg.exceptions;
 
 @safe:
 
@@ -63,7 +64,14 @@ class PGStream
     {
         version(Have_vibe_core)
         {
-            m_socket.read(buffer);
+            try
+            {
+                m_socket.read(buffer);
+            }
+            catch (Exception e)
+            {
+                throw new PGTcpErrorException(e.msg);
+            }
         }
         else
         {
@@ -78,7 +86,14 @@ class PGStream
     {
         version(Have_vibe_core)
         {
-            m_socket.write(m_write_buf);
+            try
+            {
+                m_socket.write(m_write_buf);
+            }
+            catch (Exception e)
+            {
+                throw new PGTcpErrorException(e.msg);
+            }
             m_write_buf.length = 0;
         }
         // under OS sockets we have already written our buffer
