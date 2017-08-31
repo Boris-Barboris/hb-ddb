@@ -522,6 +522,71 @@ class PGConnection
             //parseReadyForQuery(msg, this);
         }
 
+        PGResultSet!Specs bind_and_query(Specs...)(string portalName, PGParameters params,
+            ref PGFields fields)
+        {
+            checkActiveResultSet();
+            sendCloseMessage(DescribeType.Portal, portalName);
+            sendBindMessage(portalName, portalName, params);
+            sendDescribeMessage(DescribeType.Portal, portalName);
+
+            auto result = PGResultSet!Specs(this, fields, &fetchRow!Specs);
+
+            sendExecuteMessage(portalName, 0);
+            sendSyncMessage();
+            sendFlushMessage();
+            flush_stream();
+
+            ulong rowsAffected = 0;
+
+            receive:
+
+                Message msg = getMessage();
+
+                with (PGResponseMessageTypes)
+                switch (msg.type)
+                {
+                    case ErrorResponse:
+                        ResponseMessage response = handleResponseMessage(msg);
+                        sendSyncMessage();
+                        throw new PGServerErrorException(response);
+                    case BindComplete, CloseComplete:
+                        goto receive;
+                    case RowDescription:
+                        fields = parseRowDescription(msg);
+                        goto receive;
+                    case NoData:
+                        fields = new immutable(PGField)[0];
+                        goto receive;
+                    case DataRow:
+                        return parseDataRow(msg, result, fields, this);
+                    case CommandComplete:
+                        string tag;
+
+                        msg.readCString(tag);
+
+                        auto s2 = lastIndexOf(tag, ' ');
+                        if (s2 >= 0)
+                        {
+                            rowsAffected = to!ulong(tag[s2 + 1 .. $]);
+                        }
+
+                        goto receive;
+                    case EmptyQueryResponse:
+                        throw new Exception("Query string is empty.");
+                    case PortalSuspended:
+                        throw new Exception("Command suspending is not supported.");
+                    case ReadyForQuery:
+                        parseReadyForQuery(msg, this);
+                        result.nextMsg = msg;
+                        return result;
+                    default:
+                        // async notice, notification
+                        handleAsync(msg);
+                        goto receive;
+                }
+        }
+
         PGResultSet!Specs query(Specs...)(string portalName, ref PGFields fields)
         {
             checkActiveResultSet();

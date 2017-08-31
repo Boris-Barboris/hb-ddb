@@ -91,6 +91,12 @@ class PGCommand
         params.changed = true;
     }
 
+    void ensure_prepared()
+    {
+        if (!prepared)
+            prepare();
+    }
+
     /// Unprepare this statement. Goes back to normal query planning.
     void unprepare()
     {
@@ -188,6 +194,13 @@ class PGCommand
         checkPrepared(true);
         checkBound();
         return conn.query!Specs(preparedName, _fields);
+    }
+
+    PGResultSet!Specs bind_and_query(Specs...)()
+    {
+        ensure_prepared();
+        scope(success) params.changed = false;
+        return conn.bind_and_query!Specs(preparedName, params, _fields);
     }
 
     /**
