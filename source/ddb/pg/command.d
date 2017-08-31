@@ -139,6 +139,15 @@ class PGCommand
         }
     }
 
+    // this function runs prepare and bind for unnamed query without flush
+    // between them, wich makes it faster
+    void prepare_and_bind()
+    {
+        enforce(!prepared, "prepare_and_bind must be called on unprepared query");
+        _fields = conn.prepare_and_bind("", _query, params);
+        params.changed = false;
+    }
+
     private void checkBound()
     {
         if (params.changed)

@@ -374,6 +374,43 @@ class PGConnection
             }
         }
 
+        PGFields prepare_and_bind(string stmtPortalName, string query, PGParameters params)
+        {
+            checkActiveResultSet();
+            sendParseMessage(stmtPortalName, query, params.getOids());
+            sendCloseMessage(DescribeType.Portal, stmtPortalName);
+            sendBindMessage(stmtPortalName, stmtPortalName, params);
+            sendDescribeMessage(DescribeType.Portal, stmtPortalName);
+            sendFlushMessage();
+
+            flush_stream();
+
+        receive:
+
+            Message msg = getMessage();
+
+            with (PGResponseMessageTypes)
+            switch (msg.type)
+            {
+                case ErrorResponse:
+                    ResponseMessage response = handleResponseMessage(msg);
+                    sendSyncMessage();
+                    throw new PGServerErrorException(response);
+                case ParseComplete:
+                    goto receive;
+                case BindComplete, CloseComplete:
+                    goto receive;
+                case NoData:
+                    return new immutable(PGField)[0];
+                case RowDescription:
+                    return parseRowDescription(msg);
+                default:
+                    // async notice, notification
+                    handleAsync(msg);
+                    goto receive;
+            }
+        }
+
         ulong execute(string portalName, out uint oid)
         {
             checkActiveResultSet();
