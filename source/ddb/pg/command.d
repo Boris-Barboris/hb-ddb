@@ -181,6 +181,13 @@ class PGCommand
         return conn.execute(preparedName, _lastInsertOid);
     }
 
+    ulong bind_and_execute()
+    {
+        ensure_prepared();
+        scope(success) params.changed = false;
+        return conn.bind_and_execute(preparedName, params, _fields, _lastInsertOid);
+    }
+
     alias run = execute;
 
     /**

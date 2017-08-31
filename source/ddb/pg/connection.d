@@ -449,6 +449,55 @@ class PGConnection
             }
         }
 
+        ulong bind_and_execute(string portalName, PGParameters params,
+            ref PGFields fields, out uint oid)
+        {
+            checkActiveResultSet();
+            ulong rowsAffected = 0;
+            sendCloseMessage(DescribeType.Portal, portalName);
+            sendBindMessage(portalName, portalName, params);
+            sendDescribeMessage(DescribeType.Portal, portalName);
+            sendExecuteMessage(portalName, 0);
+            sendSyncMessage();
+            sendFlushMessage();
+            flush_stream();
+
+        receive:
+
+            Message msg = getMessage();
+
+            with (PGResponseMessageTypes)
+            switch (msg.type)
+            {
+                case ErrorResponse:
+                    ResponseMessage response = handleResponseMessage(msg);
+                    throw new PGServerErrorException(response);
+                case DataRow:
+                    finalizeQuery();
+                    throw new Exception("This query returned rows.");
+                case CommandComplete:
+                    parseCommandCompletion(msg, this, oid, rowsAffected);
+                    goto receive;
+                case EmptyQueryResponse:
+                    goto receive;
+                case ReadyForQuery:
+                    parseReadyForQuery(msg, this);
+                    return rowsAffected;
+                case BindComplete, CloseComplete:
+                    goto receive;
+                case RowDescription:
+                    fields = parseRowDescription(msg);
+                    goto receive;
+                case NoData:
+                    fields = new immutable(PGField)[0];
+                    goto receive;
+                default:
+                    // async notice, notification
+                    handleAsync(msg);
+                    goto receive;
+            }
+        }
+
         DBRow!Specs fetchRow(Specs...)(ref Message msg, ref PGFields fields)
         {
             alias DBRow!Specs Row;
